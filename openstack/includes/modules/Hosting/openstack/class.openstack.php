@@ -33,7 +33,7 @@ use OpenCloud;
 /**
  * Definition of a OpenStack module class
  *
- *  This class uses the php-opencloud v1.10.0
+ * This class uses the php-opencloud v1.10.0
  *
  * @category  Modules
  * @package   OpenStack
@@ -54,6 +54,20 @@ class Openstack extends VPSModule
      * @var string
      */
     protected $description = 'OpenStack module for HostBill';
+
+    /**
+     * Defines options in Settings -> Product & Services -> Product ->
+     * Connect with App section
+     * @var array
+     */
+    protected $options = array(
+        'option1' => array (
+            'name'    => 'plan',
+            'value'   => false,
+            'type'    => 'loadable',
+            'default' => 'getPlans'
+        )
+    );
            
     /**
       * You can choose which fields to display in Settings->Apps section
@@ -220,6 +234,46 @@ class Openstack extends VPSModule
     public function terminate()
     {
         return true;
+    }
+
+    /**
+     * getPlans
+     *
+     * Get the flavors from OpenStack
+     *
+     * @return array
+     *
+     * @access public
+     * @static
+     */
+    public function getPlans()
+    {
+        $this->authenticate();
+
+        try {
+            // 2. Create Compute service
+            $computeService = $this->client->computeService('nova', 'RegionOne');
+
+            // 3. Get the flavors
+            $flavors = $computeService->flavorList();
+
+            // 4. Put the flavors into a array
+            foreach ($flavors as $flavor) {
+                $vcpus = $flavor->vcpus;
+                $disk = $flavor->disk;
+                $ram = $flavor->ram/1024;
+
+                $return[] = array(
+                    $flavor->id,
+                    "$flavor->name (".$ram." GB / ".$vcpus." CPU / ".$disk. " GB)");
+            }
+
+            // 5. Return the array
+            return $return;
+        } catch (Exception $e) {
+            $this->addError('Unable to get plans from the server.');
+            return false;
+        }
     }
     
     /* End of functions for the OpenStack class used by HostBill */
