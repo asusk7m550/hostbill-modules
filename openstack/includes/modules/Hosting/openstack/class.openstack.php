@@ -26,8 +26,14 @@
  * @link      https://github.com/asusk7m550/hostbill-modules/openstack
  */
 
+// Include the php-opencloud class
+require __DIR__ . '/vendor/autoload.php';
+use OpenCloud;
+
 /**
  * Definition of a OpenStack module class
+ *
+ *  This class uses the php-opencloud v1.10.0
  *
  * @category  Modules
  * @package   OpenStack
@@ -114,14 +120,22 @@ class Openstack extends VPSModule
     /**
      * testConnection
      *
-     * @return int true
+     * Test if a connection can be made by the authenticate function
+     *
+     * @return int true/false
      *
      * @access public
      * @static
      */
     public function testConnection()
     {
-        return true;
+        try {
+            $this->authenticate();
+            return true;
+        } catch (Exception $e) {
+            $this->addError($e->getMessage());
+            return false;
+        }
     }
 
     /**
@@ -209,4 +223,60 @@ class Openstack extends VPSModule
     }
     
     /* End of functions for the OpenStack class used by HostBill */
+
+    /* Functions for the OpenStack class internally used */
+
+    /**
+     * initiate
+     *
+     * Create a connection to OpenStack
+     *
+     * @return int true/false
+     *
+     * @access protected
+     * @static
+     */
+    protected function initiate()
+    {
+        // Initiate a OpenStack client
+        try {
+            $this->client = new OpenCloud\OpenStack(
+                $this->connection['authUrl'], array(
+                    'username'   => $this->connection['username'],
+                    'password'   => $this->connection['password'],
+                    'tenantName' => $this->connection['tenantName']
+                )
+            );
+            return true;
+        } catch (Exception $e) {
+            $this->addError('Unable to initiate the connection.');
+            return false;
+        }
+    }
+
+    /**
+     * Authenticate
+     *
+     * Authenticate to the OpenStack API
+     *
+     * @return int true/false
+     *
+     * @access protected
+     * @static
+     */
+    protected function authenticate()
+    {
+        // Initiate a OpenStack client
+        $this->initiate();
+
+        try {
+            // Authenticate to OpenStack
+            $this->client->authenticate();
+            return true;
+        } catch (Exception $e) {
+            $this->addError('Unable to authenticate to OpenStack.');
+            return false;
+        }
+    }
+    /* End of functions for the OpenStack class internally used */
 }
