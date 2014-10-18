@@ -48,6 +48,28 @@ class Openstack extends VPSModule
     protected $modname = 'OpenStack';
     protected $lang;
 
+    // http://wiki.hostbillapp.com/index.php?title=Hosting_Modules#.24details
+    protected $details = array(
+        'option1' => array(
+            'name' => 'username',
+            'value' => false,
+            'type' => 'input',
+            'default' => false
+        ),
+        'option2' => array(
+            'name' => 'password',
+            'value' => false,
+            'type' => 'input',
+            'default' => false
+        ),
+        'option3' =>array (
+            'name'=> 'domain',
+            'value' => false,
+            'type'=> 'input',
+            'default'=>false
+        )
+    );
+
     /**
      * This variable contain description of module which will be visible
      * in HostBill module-manager
@@ -181,13 +203,68 @@ class Openstack extends VPSModule
      *
      * HostBill calls create() function when account should be provisioned (created).
      * 
-     * @return int true
+     * @return int true/false
      *
      * @access public
      * @static
      */    
     public function create()
     {
+        // 1. Instantiate a OpenStack client
+        $this->authenticate();
+
+        try {
+            // 2. Create Compute service
+            $computeService = $this->client->computeService('nova', 'RegionOne');
+
+            // 3. Get empty server
+            $server = $computeService->server();
+
+            // 4. Select an OS image
+            $images = $computeService->imageList();
+            foreach ($images as $image) {
+                if (strpos($image->name, 'Ubuntu') !== false) {
+                    $ubuntuImage = $image;
+                    break;
+                }
+            }
+
+            // 5. Select a hardware flavor
+            $flavors = $computeService->flavorList();
+            foreach ($flavors as $flavor) {
+                if (strpos($flavor->name, 'small') !== false) {
+                    $twoGbFlavor = $flavor;
+                    break;
+                }
+            }
+        } catch (Exception $e) {
+            $this->addError($e->getMessage());
+            return false;
+        }
+
+        // 6. Create
+        try {
+            $response = $server->create(
+                array(
+                    'name'     => $this->details['option3']['value'],
+                    'image'    => $ubuntuImage,
+                    'flavor'   => $twoGbFlavor
+                )
+            );
+        } catch (Exception $e) {
+            $this->addError($e->getMessage());
+        }
+
+        try {
+            // Retreive the password and ID
+            $body = json_decode($response->getBody(true));
+            $this->details['option2']['value'] = $body->server->adminPass;
+            $this->veid = $body->server->id;
+        } catch (Exception $e) {
+            $this->addError($e->getMessage());
+            return false;
+        }
+
         return true;
     }
 
@@ -226,13 +303,43 @@ class Openstack extends VPSModule
      *
      * HostBill calls terminate() function when account should be terminated.
      * 
-     * @return int true
+     * @return int true/false
      *
      * @access public
      * @static
      */
     public function terminate()
     {
+        // 1. Instantiate a OpenStack client
+        $this->authenticate();
+
+        try {
+            // 2. Create Compute service
+            $computeService = $this->client->computeService('nova', 'RegionOne');
+
+            // 3. Get a existing server
+            $server = $computeService->server($this->veid);
+        } catch (Exception $e) {
+            $this->addError($e->getMessage());
+            return false;
+        }
+
+        // 6. Delete
+        try {
+            $response = $server->delete();
+        } catch (Exception $e) {
+            $this->addError($e->getMessage());
+            return false;
+        }
+
+        try {
+            // Retreive the response
+            $body = json_decode($response->getBody(true));
+        } catch (Exception $e) {
+            $this->addError($e->getMessage());
+            return false;
+        }
+
         return true;
     }
 
