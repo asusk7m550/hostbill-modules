@@ -84,7 +84,7 @@ class Openstack extends VPSModule
      */
     protected $options = array(
         'option1' => array (
-            'name'    => 'plan',
+            'name'    => 'flavor',
             'value'   => false,
             'type'    => 'loadable',
             'default' => 'getPlans'
@@ -229,14 +229,8 @@ class Openstack extends VPSModule
                 }
             }
 
-            // 5. Select a hardware flavor
-            $flavors = $computeService->flavorList();
-            foreach ($flavors as $flavor) {
-                if (strpos($flavor->name, 'small') !== false) {
-                    $twoGbFlavor = $flavor;
-                    break;
-                }
-            }
+            // 5. Select a flavor
+            $flavor = $computeService->flavor($this->options['option1']['value']);
         } catch (Exception $e) {
             $this->addError($e->getMessage());
             return false;
@@ -248,7 +242,7 @@ class Openstack extends VPSModule
                 array(
                     'name'     => $this->details['option3']['value'],
                     'image'    => $ubuntuImage,
-                    'flavor'   => $twoGbFlavor
+                    'flavor'   => $flavor
                 )
             );
         } catch (Exception $e) {
@@ -273,13 +267,43 @@ class Openstack extends VPSModule
      *
      * HostBill calls suspend() function when account should be suspended.
      * 
-     * @return int true
+     * @return int true/false
      *
      * @access public
      * @static
      */
     public function suspend()
     {
+        // 1. Instantiate a OpenStack client
+        $this->authenticate();
+
+        try {
+            // 2. Create Compute service
+            $computeService = $this->client->computeService('nova', 'RegionOne');
+
+            // 3. Get a existing server
+            $server = $computeService->server($this->veid);
+        } catch (Exception $e) {
+            $this->addError($e->getMessage());
+            return false;
+        }
+
+        // 6. Delete
+        try {
+            $response = $server->suspend();
+        } catch (Exception $e) {
+            $this->addError($e->getMessage());
+            return false;
+        }
+
+        try {
+            // Retreive the response
+            $body = json_decode($response->getBody(true));
+        } catch (Exception $e) {
+            $this->addError($e->getMessage());
+            return false;
+        }
+
         return true;
     }
 
@@ -295,6 +319,36 @@ class Openstack extends VPSModule
      */
     public function unsuspend()
     {
+        // 1. Instantiate a OpenStack client
+        $this->authenticate();
+
+        try {
+            // 2. Create Compute service
+            $computeService = $this->client->computeService('nova', 'RegionOne');
+
+            // 3. Get a existing server
+            $server = $computeService->server($this->veid);
+        } catch (Exception $e) {
+            $this->addError($e->getMessage());
+            return false;
+        }
+
+        // 6. Delete
+        try {
+            $response = $server->resume();
+        } catch (Exception $e) {
+            $this->addError($e->getMessage());
+            return false;
+        }
+
+        try {
+            // Retreive the response
+            $body = json_decode($response->getBody(true));
+        } catch (Exception $e) {
+            $this->addError($e->getMessage());
+            return false;
+        }
+
         return true;
     }
 
